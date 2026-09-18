@@ -189,7 +189,20 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             report(commands::apply_patch(app, patch));
         }
         ID_PERMISSION => {
-            let _ = commands::request_input_permission(app.clone());
+            let needs_restart = matches!(
+                app.state::<AppState>()
+                    .hook
+                    .lock()
+                    .as_ref()
+                    .map(|h| h.status()),
+                Some(HookStatus::NeedsRestart)
+            );
+            if needs_restart {
+                app.state::<AppState>().persister.flush();
+                app.restart();
+            } else {
+                let _ = commands::request_input_permission(app.clone());
+            }
         }
         ID_SETTINGS => {
             let _ = window::open(app);

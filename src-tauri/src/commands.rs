@@ -1,8 +1,11 @@
 //! Tauri IPC commands (SPEC §8.3).
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use clatterbox_core::{AudioStatus, HookStatus, PackInfo, PackSlot, Settings, SettingsPatch};
+use clatterbox_core::{
+    AudioStatus, HookStatus, LoadedPack, PackError, PackInfo, PackSlot, Settings, SettingsPatch,
+};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -29,32 +32,56 @@ pub(crate) const PLATFORM: &str = "macos";
 #[cfg(target_os = "linux")]
 pub(crate) const PLATFORM: &str = "linux";
 
-/// Single code path for settings changes from IPC and the tray (SPEC §8.5).
+/// Loads `id` on a blocking thread (decode is not cheap) unless it is already in the LRU cache,
+/// in which case this returns immediately with no thread hop at all.
+async fn load_pack_cached(app: &AppHandle, id: &str) -> Result<Arc<LoadedPack>, CmdError> {
+    if let Some(cached) = app.state::<AppState>().loaded.lock().get(id) {
+        return Ok(cached);
+    }
+
+    let app2 = app.clone();
+    let pack_id = id.to_owned();
+    let loaded: Result<LoadedPack, PackError> = tauri::async_runtime::spawn_blocking(move || {
+        let state = app2.state::<AppState>();
+        let registry = state.registry.lock();
+        registry.load(&pack_id, crate::SYNTH_RATE)
+    })
+    .await
+    .map_err(CmdError::from)?;
+    let loaded = Arc::new(loaded.map_err(CmdError::from)?);
+
+    app.state::<AppState>().loaded.lock().insert(loaded.clone());
+    Ok(loaded)
+}
+
+/// Single code path for settings changes from IPC and the tray (SPEC §8.5). Called from both the
+/// synchronous tray menu handler and the async `update_settings` command, so it stays
+/// synchronous itself — `update_settings` pre-warms [`crate::packs::PackCache`] off-thread via
+/// [`load_pack_cached`] before calling this, and this checks the cache first too (so a
+/// just-previewed or just-warmed pack is never decoded twice), falling back to a direct
+/// (blocking) registry load only on a genuine cache miss, e.g. picking a pack from the tray.
 pub(crate) fn apply_patch(app: &AppHandle, patch: SettingsPatch) -> Result<Settings, CmdError> {
     let state = app.state::<AppState>();
 
     let current = state.settings.lock().clone();
     let next = current.merged(&patch);
 
-    // Pack change: load (with fallback baked into `load_with_fallback`), but only accept the
-    // new setting if the requested pack itself loaded (a bad `pack` id must not silently swap
-    // in the fallback and pretend it succeeded).
     if next.pack != current.pack {
-        let registry = state.registry.lock();
-        let mut cache = state.loaded.lock();
-        let out_rate = crate::SYNTH_RATE;
-        match registry.load(&next.pack, out_rate) {
-            Ok(loaded) => {
-                let loaded = std::sync::Arc::new(loaded);
-                cache.insert(loaded.clone());
-                drop(registry);
-                drop(cache);
-                state.engine.set_pack(PackSlot::Main, loaded);
+        let cached = state.loaded.lock().get(&next.pack);
+        let loaded = match cached {
+            Some(pack) => pack,
+            None => {
+                let loaded = state
+                    .registry
+                    .lock()
+                    .load(&next.pack, crate::SYNTH_RATE)
+                    .map_err(CmdError::from)?;
+                let loaded = Arc::new(loaded);
+                state.loaded.lock().insert(loaded.clone());
+                loaded
             }
-            Err(err) => {
-                return Err(CmdError::from(err));
-            }
-        }
+        };
+        state.engine.set_pack(PackSlot::Main, loaded);
     }
 
     state.params.apply(&next);
@@ -88,7 +115,15 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, CmdError> {
 }
 
 #[tauri::command]
-pub fn update_settings(app: AppHandle, patch: SettingsPatch) -> Result<Settings, CmdError> {
+pub async fn update_settings(app: AppHandle, patch: SettingsPatch) -> Result<Settings, CmdError> {
+    // Warm the cache off the calling thread before touching any state: `apply_patch` itself
+    // never decodes, so a bad/never-loaded `pack` id must be resolved (or fail) here first.
+    if let Some(pack_id) = &patch.pack {
+        let current_pack = app.state::<AppState>().settings.lock().pack.clone();
+        if *pack_id != current_pack {
+            load_pack_cached(&app, pack_id).await?;
+        }
+    }
     apply_patch(&app, patch)
 }
 
@@ -102,33 +137,23 @@ pub fn reload_packs(app: AppHandle) -> Result<Vec<PackInfo>, CmdError> {
     let state = app.state::<AppState>();
     let infos = state.registry.lock().rescan().to_vec();
     let _ = app.emit(events::PACKS_CHANGED, &infos);
+    tray::refresh(&app);
     Ok(infos)
 }
 
 #[tauri::command]
-pub fn preview_pack(app: AppHandle, id: String) -> Result<(), CmdError> {
-    let state = app.state::<AppState>();
-    let out_rate = crate::SYNTH_RATE;
-    let loaded = {
-        let registry = state.registry.lock();
-        let mut cache = state.loaded.lock();
-        if let Some(cached) = cache.get(&id) {
-            cached
-        } else {
-            let loaded = registry.load(&id, out_rate)?;
-            let loaded = std::sync::Arc::new(loaded);
-            cache.insert(loaded.clone());
-            loaded
-        }
-    };
-    state.engine.set_pack(PackSlot::Preview, loaded);
+pub async fn preview_pack(app: AppHandle, id: String) -> Result<(), CmdError> {
+    let loaded = load_pack_cached(&app, &id).await?;
+    app.state::<AppState>()
+        .engine
+        .set_pack(PackSlot::Preview, loaded);
     packs::schedule_preview(app);
     Ok(())
 }
 
 /// JS key: `srcDir`.
 #[tauri::command]
-pub fn import_pack(app: AppHandle, src_dir: String) -> Result<PackInfo, CmdError> {
+pub async fn import_pack(app: AppHandle, src_dir: String) -> Result<PackInfo, CmdError> {
     if src_dir.trim().is_empty() {
         return Err(CmdError::new(ErrorCode::InvalidInput, "srcDir is empty"));
     }
@@ -139,12 +164,22 @@ pub fn import_pack(app: AppHandle, src_dir: String) -> Result<PackInfo, CmdError
             format!("{src_dir} is not a directory"),
         ));
     }
-    let state = app.state::<AppState>();
+
+    let app2 = app.clone();
     // `import_dir` now reports a duplicate id as `PackErrorKind::Exists`, which
-    // `CmdError::from` maps to `ErrorCode::Exists` — no need to pre-check here.
-    let info = state.registry.lock().import_dir(&src)?;
-    let infos = state.registry.lock().list().to_vec();
+    // `CmdError::from` maps to `ErrorCode::Exists`.
+    let info: Result<PackInfo, PackError> = tauri::async_runtime::spawn_blocking(move || {
+        let state = app2.state::<AppState>();
+        let mut registry = state.registry.lock();
+        registry.import_dir(&src)
+    })
+    .await
+    .map_err(CmdError::from)?;
+    let info = info.map_err(CmdError::from)?;
+
+    let infos = app.state::<AppState>().registry.lock().list().to_vec();
     let _ = app.emit(events::PACKS_CHANGED, &infos);
+    tray::refresh(&app);
     Ok(info)
 }
 
@@ -202,5 +237,6 @@ pub fn request_input_permission(app: AppHandle) -> Result<HookStatus, CmdError> 
 
 #[tauri::command]
 pub fn restart_app(app: AppHandle) {
+    app.state::<AppState>().persister.flush();
     app.restart()
 }

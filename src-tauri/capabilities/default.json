@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Settings window: core IPC + folder picker. App commands are allowed by default.",
+  "description": "Settings window: event listen/unlisten + folder picker. App commands (get_settings, update_settings, etc.) are defined in the app binary, not a plugin, so they need no ACL entry here.",
   "windows": ["settings"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "dialog:allow-open"]
 }

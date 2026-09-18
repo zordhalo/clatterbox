@@ -104,11 +104,23 @@ pub fn run() {
             let hook = clatterbox_keyhook::start(
                 hook_tx,
                 params.clone(),
-                Box::new(move |_status| emit_status(&hook_status_handle)),
-            );
-            let hook_needs_permission = matches!(
-                hook.status(),
-                HookStatus::NeedsPermission { .. } | HookStatus::NeedsRestart
+                Box::new(move |status| {
+                    emit_status(&hook_status_handle);
+                    // `hook.status()` right after `start()` races the hook thread — it can
+                    // still read `Starting` even when the backend is about to report
+                    // `NeedsPermission`/`NeedsRestart`. Open the window from here instead, once
+                    // the real status lands; dispatched to the main thread since this callback
+                    // can fire from the hook's own thread.
+                    if matches!(
+                        status,
+                        HookStatus::NeedsPermission { .. } | HookStatus::NeedsRestart
+                    ) {
+                        let window_handle = hook_status_handle.clone();
+                        let _ = hook_status_handle.run_on_main_thread(move || {
+                            let _ = window::open(&window_handle);
+                        });
+                    }
+                }),
             );
 
             let persister = Persister::new(settings_path);
@@ -125,14 +137,25 @@ pub fn run() {
 
             tray::build(&handle)?;
 
-            if matches!(load_outcome, LoadOutcome::FirstRun) || hook_needs_permission {
+            if matches!(load_outcome, LoadOutcome::FirstRun) {
                 let _ = window::open(&handle);
             }
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Clatterbox");
+        .build(tauri::generate_context!())
+        .expect("error while building Clatterbox")
+        .run(|app_handle, event| {
+            // Flush any pending debounced settings write before the process actually goes away
+            // (quit via tray already flushes; this also covers OS-initiated shutdown/exit).
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) && let Some(state) = app_handle.try_state::<AppState>()
+            {
+                state.persister.flush();
+            }
+        });
 }
 
 /// Reads the current hook + audio status from managed state and emits the combined `Status`
@@ -156,4 +179,7 @@ fn emit_status(app: &tauri::AppHandle) {
         version: env!("CARGO_PKG_VERSION"),
     };
     let _ = app.emit(events::STATUS_CHANGED, &status);
+    // Rebuilds the permission item / relaunch label; `tray::refresh` hops to the main thread
+    // itself, so this is safe to call from the hook/audio status callback threads.
+    tray::refresh(app);
 }

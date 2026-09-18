@@ -121,16 +121,15 @@ pub enum LoadOutcome {
 }
 
 /// Missing → default + `FirstRun`; parse error → rename to `settings.json.corrupt-<unix_ts>`,
-/// default + `Recovered`.
+/// default + `Recovered`. Any other I/O error (permission denied, path is a directory, ...) just
+/// falls back to defaults and leaves the file alone — it may not even be ours to quarantine.
 pub fn load(path: &Path) -> (Settings, LoadOutcome) {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return (Settings::default(), LoadOutcome::FirstRun);
-        }
+        // Missing, permission denied, path is a directory, ... — none of these are "corrupt",
+        // so just fall back to defaults and leave whatever is at `path` alone.
         Err(_) => {
-            recover_corrupt(path);
-            return (Settings::default(), LoadOutcome::Recovered);
+            return (Settings::default(), LoadOutcome::FirstRun);
         }
     };
 
@@ -265,6 +264,23 @@ mod tests {
             .filter_map(|e| e.ok())
             .map(|e| e.file_name().to_string_lossy().into_owned());
         assert!(renamed.any(|n| n.starts_with("settings.json.corrupt-")));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_io_error_uses_defaults_without_quarantine() {
+        // A directory at `path` fails to read with an I/O error that is not `NotFound` and is
+        // not a JSON parse error either — must not be treated as corrupt (nothing gets renamed).
+        let dir = std::env::temp_dir().join(format!("clatterbox-test-{}", fastrand_seed()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        fs::create_dir_all(&path).unwrap();
+
+        let (settings, outcome) = load(&path);
+        assert!(outcome == LoadOutcome::FirstRun);
+        assert!(settings == Settings::default());
+        assert!(path.is_dir(), "the directory must be left untouched");
 
         let _ = fs::remove_dir_all(&dir);
     }
