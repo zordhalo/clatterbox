@@ -1,6 +1,7 @@
 //! Pack discovery, loading and import (SPEC §5.1, §5.4).
 
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use super::decode::{MAX_PACK_F32_BYTES, decode_file};
@@ -15,7 +16,11 @@ pub const CREDITS_FILE: &str = "CREDITS.md";
 /// Licenses allowed for builtin packs (SPEC §5.3).
 pub const BUILTIN_LICENSES: [&str; 2] = ["CC0-1.0", "public-domain"];
 /// Extra non-audio files copied on import when present.
-const IMPORT_EXTRAS: [&str; 3] = ["LICENSE.txt", "LICENSE", CREDITS_FILE];
+pub const IMPORT_EXTRAS: [&str; 3] = ["LICENSE.txt", "LICENSE", CREDITS_FILE];
+/// Largest accepted `pack.toml`.
+pub const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
+/// Largest license/credits file copied on import.
+pub const MAX_EXTRA_BYTES: u64 = 1024 * 1024;
 
 pub struct PackRegistry {
     builtin_dir: Option<PathBuf>,
@@ -71,11 +76,48 @@ fn invalid_info(id: String, kind: PackKind, name: &str, err: String) -> PackInfo
     }
 }
 
+/// Reads `pack.toml` (a regular file, not a symlink, at most 64 KiB).
+fn read_manifest_text(dir: &Path) -> Result<String, String> {
+    let path = dir.join(MANIFEST_FILE);
+    let cannot = |e: std::io::Error| format!("cannot read {MANIFEST_FILE}: {e}");
+    let meta = fs::symlink_metadata(&path).map_err(cannot)?;
+    if !meta.is_file() {
+        return Err(format!("{MANIFEST_FILE} must be a regular file"));
+    }
+    let mut text = String::new();
+    fs::File::open(&path)
+        .and_then(|f| f.take(MAX_MANIFEST_BYTES + 1).read_to_string(&mut text))
+        .map_err(cannot)?;
+    if text.len() as u64 > MAX_MANIFEST_BYTES {
+        return Err(format!("{MANIFEST_FILE} is larger than 64 KiB"));
+    }
+    Ok(text)
+}
+
+/// License/credit files to copy on import. Symlinks and files over 1 MiB are refused.
+fn import_extras(src: &Path) -> Result<Vec<&'static str>, String> {
+    let mut out = Vec::new();
+    for extra in IMPORT_EXTRAS {
+        let Ok(meta) = fs::symlink_metadata(src.join(extra)) else {
+            continue;
+        };
+        if meta.file_type().is_symlink() {
+            return Err(format!("{extra} must not be a symlink"));
+        }
+        if !meta.is_file() {
+            continue;
+        }
+        if meta.len() > MAX_EXTRA_BYTES {
+            return Err(format!("{extra} is larger than 1 MiB"));
+        }
+        out.push(extra);
+    }
+    Ok(out)
+}
+
 /// Reads and validates `pack.toml` (plus builtin-only rules). Manifest only, no decoding.
 fn read_manifest(dir: &Path, kind: PackKind) -> Result<Manifest, String> {
-    let text = fs::read_to_string(dir.join(MANIFEST_FILE))
-        .map_err(|e| format!("cannot read {MANIFEST_FILE}: {e}"))?;
-    let m = manifest::parse(&text)?;
+    let m = manifest::parse(&read_manifest_text(dir)?)?;
     if kind == PackKind::Builtin {
         if !BUILTIN_LICENSES.contains(&m.license.as_str()) {
             return Err(format!(
@@ -143,15 +185,15 @@ pub fn load_dir(dir: &Path, id: &str, kind: PackKind) -> Result<LoadedPack, Pack
             }
         }
     }
+    if derive::resolved_samples(&sets) * 4 > MAX_PACK_F32_BYTES {
+        return Err(inv(
+            "decoded audio (incl. derived sets) would exceed 32 MiB".into(),
+        ));
+    }
     let derived = derive::resolve(&mut sets, &m.class_gain_db());
     let mut info = info_from_manifest(id.to_owned(), kind, &m);
     info.derived = derived;
     let pack = LoadedPack::from_sets(info, db_to_gain(m.gain_db()), sets);
-    if pack.f32_bytes() > MAX_PACK_F32_BYTES {
-        return Err(inv(
-            "decoded audio (incl. derived sets) exceeds 32 MiB".into()
-        ));
-    }
     Ok(pack)
 }
 
@@ -246,9 +288,11 @@ impl PackRegistry {
                 "a pack with this id exists",
             ));
         }
+        let extras = import_extras(src).map_err(|e| PackError::invalid(&id, e))?;
         load_dir(src, &id, PackKind::User)?;
-        let m = read_manifest(src, PackKind::User).map_err(|e| PackError::invalid(&id, e))?;
-        copy_pack(src, &dst, &m).map_err(|e| {
+        let text = read_manifest_text(src).map_err(|e| PackError::invalid(&id, e))?;
+        let m = manifest::parse(&text).map_err(|e| PackError::invalid(&id, e))?;
+        copy_pack(src, &dst, &text, &m, &extras).map_err(|e| {
             let _ = fs::remove_dir_all(&dst);
             PackError::new(PackErrorKind::Io, &id, format!("copy failed: {e}"))
         })?;
@@ -261,16 +305,19 @@ impl PackRegistry {
     }
 }
 
-/// Copies `pack.toml`, every referenced audio file (keeping relative paths) and license/credit
-/// files. Nothing else from the source folder is copied.
-fn copy_pack(src: &Path, dst: &Path, m: &Manifest) -> std::io::Result<()> {
+/// Writes the validated `pack.toml` text, copies every referenced audio file (keeping relative
+/// paths) and the pre-checked license/credit `extras`. Nothing else from the source is copied.
+fn copy_pack(
+    src: &Path,
+    dst: &Path,
+    manifest_text: &str,
+    m: &Manifest,
+    extras: &[&str],
+) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
-    fs::copy(src.join(MANIFEST_FILE), dst.join(MANIFEST_FILE))?;
-    for extra in IMPORT_EXTRAS {
-        let p = src.join(extra);
-        if p.is_file() {
-            fs::copy(&p, dst.join(extra))?;
-        }
+    fs::write(dst.join(MANIFEST_FILE), manifest_text)?;
+    for extra in extras {
+        fs::copy(src.join(extra), dst.join(extra))?;
     }
     for c in KeyClass::ALL {
         let Some(files) = m.sounds.class(c) else {

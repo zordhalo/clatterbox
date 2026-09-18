@@ -1,6 +1,6 @@
 mod common;
 
-use clatterbox_core::pack::derive::{class_offset, derive_sample, resolve};
+use clatterbox_core::pack::derive::{class_offset, derive_sample, resolve, resolved_samples};
 use clatterbox_core::{KeyClass, Sample, SampleSet};
 use common::*;
 
@@ -120,4 +120,19 @@ fn class_gain_applied_to_explicit_and_propagated() {
     // space.down = default gain (-6) + offset (+1)
     let s = db(peak(&sets[KeyClass::Space as usize].down[0].data)) - db(src_peak);
     assert!((s + 5.0).abs() < 0.5, "space = {s}");
+}
+
+#[test]
+fn size_estimate_matches_resolution() {
+    let mut sets = only_default_down();
+    sets[KeyClass::Enter as usize].down = vec![source(700)];
+    sets[KeyClass::Space as usize].up = vec![source(90)];
+    let estimate = resolved_samples(&sets);
+    resolve(&mut sets, &[0.0; KeyClass::COUNT]);
+    let actual: usize = sets
+        .iter()
+        .flat_map(|s| s.down.iter().chain(&s.up))
+        .map(|s| s.data.len())
+        .sum();
+    assert_eq!(estimate, actual);
 }

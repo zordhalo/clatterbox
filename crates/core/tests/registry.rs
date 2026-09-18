@@ -138,3 +138,111 @@ fn builtin_packs_valid() {
         }
     }
 }
+
+/// Minimal 16-bit mono PCM WAV writer.
+fn write_wav(path: &std::path::Path, rate: u32, samples: &[i16]) {
+    let data_len = (samples.len() * 2) as u32;
+    let mut b = Vec::with_capacity(44 + data_len as usize);
+    b.extend_from_slice(b"RIFF");
+    b.extend_from_slice(&(36 + data_len).to_le_bytes());
+    b.extend_from_slice(b"WAVEfmt ");
+    b.extend_from_slice(&16u32.to_le_bytes());
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&rate.to_le_bytes());
+    b.extend_from_slice(&(rate * 2).to_le_bytes());
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(&16u16.to_le_bytes());
+    b.extend_from_slice(b"data");
+    b.extend_from_slice(&data_len.to_le_bytes());
+    for s in samples {
+        b.extend_from_slice(&s.to_le_bytes());
+    }
+    std::fs::write(path, b).unwrap();
+}
+
+#[test]
+fn oversized_derived_pack_rejected_before_derivation() {
+    // 16 x 1.9 s at 192 kHz decodes to ~23 MiB (under the 32 MiB decode cap); the derived sets
+    // would push it far over, which must be caught from the lengths alone.
+    let tmp = TempDir::new("oversize");
+    let dir = tmp.0.join("big");
+    std::fs::create_dir_all(&dir).unwrap();
+    let n = (192_000.0 * 1.9) as usize;
+    let samples: Vec<i16> = (0..n)
+        .map(|i| ((i as f32 * 0.05).sin() * 8000.0) as i16)
+        .collect();
+    write_wav(&dir.join("a.wav"), 192_000, &samples);
+    let list = vec!["\"a.wav\""; 16].join(", ");
+    std::fs::write(
+        dir.join("pack.toml"),
+        format!(
+            "schema = 1\nname = \"Big\"\nauthor = \"t\"\nlicense = \"CC0-1.0\"\n\
+             [sounds.default]\ndown = [{list}]\n"
+        ),
+    )
+    .unwrap();
+    let reg = PackRegistry::new(None, tmp.0.clone());
+    let err = reg.load("user/big", 48_000).err().unwrap();
+    assert!(err.message.contains("derived"), "{}", err.message);
+}
+
+#[test]
+fn oversized_manifest_rejected() {
+    let tmp = TempDir::new("bigmanifest");
+    let dir = tmp.0.join("p");
+    copy_dir(&pack_fixture("valid-min"), &dir);
+    let mut text = std::fs::read_to_string(dir.join("pack.toml")).unwrap();
+    text.push_str(&format!("# {}\n", "x".repeat(70 * 1024)));
+    std::fs::write(dir.join("pack.toml"), text).unwrap();
+    let mut reg = PackRegistry::new(None, tmp.0.clone());
+    let info = reg
+        .rescan()
+        .iter()
+        .find(|i| i.id == "user/p")
+        .cloned()
+        .unwrap();
+    assert!(!info.valid);
+    assert!(info.error.unwrap().contains("64 KiB"));
+}
+
+#[test]
+fn import_extras_checked() {
+    let src_root = TempDir::new("extras-src");
+    let src = src_root.0.join("with-extras");
+    copy_dir(&pack_fixture("valid-min"), &src);
+    std::fs::write(src.join("LICENSE.txt"), "CC0").unwrap();
+    std::fs::write(src.join("CREDITS.md"), "x".repeat(2 * 1024 * 1024)).unwrap();
+    let user = TempDir::new("extras-user");
+    let mut reg = PackRegistry::new(None, user.0.clone());
+    let err = reg.import_dir(&src).err().unwrap();
+    assert!(err.message.contains("1 MiB"), "{}", err.message);
+    assert!(!user.0.join("with-extras").exists());
+
+    std::fs::remove_file(src.join("CREDITS.md")).unwrap();
+    reg.import_dir(&src).unwrap();
+    assert!(user.0.join("with-extras/LICENSE.txt").is_file());
+    assert!(!user.0.join("with-extras/CREDITS.md").exists());
+}
+
+#[test]
+fn import_refuses_symlinked_extra() {
+    let src_root = TempDir::new("extras-link");
+    let src = src_root.0.join("linked");
+    copy_dir(&pack_fixture("valid-min"), &src);
+    let target = src_root.0.join("secret.txt");
+    std::fs::write(&target, "secret").unwrap();
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(&target, src.join("LICENSE")).is_ok();
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file(&target, src.join("LICENSE")).is_ok();
+    if !made {
+        eprintln!("symlink creation not permitted here; skipping");
+        return;
+    }
+    let user = TempDir::new("extras-link-user");
+    let mut reg = PackRegistry::new(None, user.0.clone());
+    let err = reg.import_dir(&src).err().unwrap();
+    assert!(err.message.contains("symlink"), "{}", err.message);
+    assert!(!user.0.join("linked").exists());
+}

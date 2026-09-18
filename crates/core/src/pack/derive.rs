@@ -37,11 +37,7 @@ pub fn derive_sample(
     fade_ms: f32,
 ) -> Sample {
     let ratio = f64::from(cents_to_ratio(cents));
-    let full_len = (src.data.len() as f64 / ratio).floor() as usize;
-    let len = match keep_fraction {
-        Some(k) => ((full_len as f32 * k.clamp(0.0, 1.0)).round() as usize).max(1),
-        None => full_len.max(1),
-    };
+    let len = derived_len(src.data.len(), cents, keep_fraction);
     let gain = db_to_gain(gain_db);
     let mut data: Vec<f32> = (0..len)
         .map(|i| hermite(&src.data, i as f64 * ratio) * gain)
@@ -54,6 +50,46 @@ pub fn derive_sample(
         data: data.into_boxed_slice(),
         rate: src.rate,
     }
+}
+
+/// Output length of [`derive_sample`] for a source of `len` samples (without building it).
+pub fn derived_len(len: usize, cents: f32, keep_fraction: Option<f32>) -> usize {
+    let full_len = (len as f64 / f64::from(cents_to_ratio(cents))).floor() as usize;
+    match keep_fraction {
+        Some(k) => ((full_len as f32 * k.clamp(0.0, 1.0)).round() as usize).max(1),
+        None => full_len.max(1),
+    }
+}
+
+/// Total samples the pack will hold after [`resolve`], computed from the lengths alone so an
+/// oversized pack can be rejected before derivation allocates anything.
+pub fn resolved_samples(sets: &[SampleSet; KeyClass::COUNT]) -> usize {
+    let lens = |v: &[Sample]| -> Vec<usize> { v.iter().map(|s| s.data.len()).collect() };
+    let default_down = lens(&sets[0].down);
+    let mut total = 0;
+    for c in KeyClass::ALL {
+        let set = &sets[c as usize];
+        let down = if set.down.is_empty() && c != KeyClass::Default {
+            let (cents, _) = class_offset(c);
+            default_down
+                .iter()
+                .take(MAX_SOURCE_VARIATIONS)
+                .map(|&l| derived_len(l, cents, None))
+                .collect()
+        } else {
+            lens(&set.down)
+        };
+        let up: usize = if set.up.is_empty() {
+            down.iter()
+                .take(MAX_SOURCE_VARIATIONS)
+                .map(|&l| derived_len(l, UP_CENTS, Some(UP_KEEP_FRACTION)))
+                .sum()
+        } else {
+            set.up.iter().map(|s| s.data.len()).sum()
+        };
+        total += down.iter().sum::<usize>() + up;
+    }
+    total
 }
 
 fn derive_set(src: &[Sample], cents: f32, gain_db: f32, up: bool) -> Vec<Sample> {
