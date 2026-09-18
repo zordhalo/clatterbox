@@ -1,0 +1,20 @@
+[package]
+name = "clatterbox-audio"
+description = "Clatterbox audio engine: cpal output stream, owner thread, queues"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "clatterbox_audio"
+
+[dependencies]
+clatterbox-core.workspace = true
+cpal.workspace = true
+rtrb.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

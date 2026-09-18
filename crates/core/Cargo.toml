@@ -1,0 +1,22 @@
+[package]
+name = "clatterbox-core"
+description = "Clatterbox core: shared types, settings, mixer, packs, synth, keymap (no I/O, no platform deps)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "clatterbox_core"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+fastrand.workspace = true
+rtrb.workspace = true
+symphonia.workspace = true
+tracing.workspace = true

@@ -1,0 +1,36 @@
+[package]
+name = "clatterbox-keyhook"
+description = "Clatterbox global keyboard hook (Raw Input / CGEventTap / XI2 + evdev). Never logs key identity."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "clatterbox_keyhook"
+
+# NOTE (privacy, SPEC §0): no `tracing`/`log` dependency in this crate, by design.
+[dependencies]
+clatterbox-core.workspace = true
+rtrb.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_LibraryLoader",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-graphics = { workspace = true, features = ["CGEvent", "CGEventTypes", "CGRemoteOperation", "CGEventSource"] }
+objc2-core-foundation = { workspace = true, features = ["CFRunLoop", "CFMachPort"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb.workspace = true
+evdev.workspace = true
+libc.workspace = true

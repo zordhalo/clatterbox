@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/audio", "crates/keyhook", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+repository = "https://github.com/zordhalo/clatterbox"
+authors = ["Clatterbox contributors"]
+
+[workspace.dependencies]
+# internal
+clatterbox-core = { path = "crates/core" }
+clatterbox-audio = { path = "crates/audio" }
+clatterbox-keyhook = { path = "crates/keyhook" }
+
+# app shell
+tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
+tauri-build = { version = "2.6", features = [] }
+tauri-plugin-single-instance = "2.4"
+tauri-plugin-autostart = "2.5"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-opener = "2.5"
+
+# audio
+cpal = "0.18"
+rtrb = "0.4"
+symphonia = { version = "0.6", default-features = false, features = ["wav", "pcm", "ogg", "vorbis", "flac", "mp3"] }
+
+# shared
+toml = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+fastrand = "2.5"
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# keyhook platform backends
+windows = "0.62"
+objc2-core-graphics = "0.3"
+objc2-core-foundation = "0.3"
+x11rb = { version = "0.14", features = ["xinput"] }
+evdev = "0.13"
+libc = "0.2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "unwind"
+strip = true
