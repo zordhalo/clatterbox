@@ -117,11 +117,17 @@ fn render_voice(p: &PresetParams, class: KeyClass, dir: KeyDir, var: usize, rate
 
     // Body: modal resonances.
     let mode_f = cm.freq * if up { UP_MODE_FREQ } else { 1.0 };
-    for i in 0..3 {
+    let mut bank = std::array::from_fn::<_, 3, _>(|i| {
         let fc = p.modes_hz[i] * mode_f * jitter(&mut rng, 0.05);
         let q = p.modes_q[i] * cm.decay * jitter(&mut rng, 0.15);
-        let mode = unit_peak(Biquad::bandpass(rate, fc, q).run(&excite));
-        add_scaled(&mut out, &mode, p.modes_g[i] * gain_jitter(&mut rng));
+        Biquad::bandpass(rate, fc, q)
+    });
+    for (i, mode) in Biquad::run_bank(&mut bank, &excite).into_iter().enumerate() {
+        add_scaled(
+            &mut out,
+            &unit_peak(mode),
+            p.modes_g[i] * gain_jitter(&mut rng),
+        );
     }
 
     // Thump: bottom-out sweep (down strokes only).

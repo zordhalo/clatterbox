@@ -78,7 +78,24 @@ impl Biquad {
         let y = self.b0 * x + self.z1;
         self.z1 = self.b1 * x - self.a1 * y + self.z2;
         self.z2 = self.b2 * x - self.a2 * y;
+        // Flush decaying state before it turns subnormal (subnormals are very slow on x86).
+        if self.z1.abs() < 1e-20 && self.z2.abs() < 1e-20 {
+            self.z1 = 0.0;
+            self.z2 = 0.0;
+        }
         y
+    }
+
+    /// Runs `N` filters over the same input in one pass (interleaved for instruction-level
+    /// parallelism; each IIR on its own is latency bound).
+    pub fn run_bank<const N: usize>(bank: &mut [Biquad; N], input: &[f32]) -> [Vec<f32>; N] {
+        let mut out: [Vec<f32>; N] = std::array::from_fn(|_| Vec::with_capacity(input.len()));
+        for &x in input {
+            for (f, o) in bank.iter_mut().zip(out.iter_mut()) {
+                o.push(f.process(x));
+            }
+        }
+        out
     }
 
     /// Filters `input` into a new buffer.
@@ -87,10 +104,17 @@ impl Biquad {
     }
 }
 
-/// Exponential decay envelope of `len` samples.
+/// Exponential decay envelope of `len` samples (flushed to zero below 1e-30).
 pub fn exp_env(len: usize, tau_ms: f32, rate: u32) -> Vec<f32> {
-    let k = -1.0 / (tau_ms.max(0.001) * 0.001 * rate as f32);
-    (0..len).map(|i| (i as f32 * k).exp()).collect()
+    let decay = (-1.0 / (tau_ms.max(0.001) * 0.001 * rate as f32)).exp();
+    let mut e = 1.0f32;
+    (0..len)
+        .map(|_| {
+            let v = e;
+            e = if e < 1e-30 { 0.0 } else { e * decay };
+            v
+        })
+        .collect()
 }
 
 /// Exponential sine sweep `f0 → f1` with time constant `tau` seconds.
@@ -103,13 +127,17 @@ pub struct SineSweep {
 impl SineSweep {
     pub fn render(&self, len: usize, rate: u32) -> Vec<f32> {
         let dt = 1.0 / rate as f32;
+        let decay = (-dt / self.tau.max(1e-6)).exp();
+        let mut delta = self.f0 - self.f1;
         let mut phase = 0.0f32;
         (0..len)
-            .map(|i| {
-                let t = i as f32 * dt;
-                let f = self.f1 + (self.f0 - self.f1) * (-t / self.tau.max(1e-6)).exp();
+            .map(|_| {
                 let s = phase.sin();
-                phase = (phase + TAU * f * dt) % TAU;
+                phase += TAU * (self.f1 + delta) * dt;
+                if phase >= TAU {
+                    phase -= TAU;
+                }
+                delta *= decay;
                 s
             })
             .collect()
