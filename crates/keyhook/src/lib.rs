@@ -51,6 +51,13 @@ impl Drop for HookHandle {
 }
 
 /// Starts the platform backend on its own thread. Never panics; failures surface as status.
+///
+/// Windows ordering constraint: Raw Input keeps one registration per (usage page, usage) per
+/// process, and the last `RegisterRawInputDevices` call wins. tao registers keyboard Raw Input
+/// for its own window in `EventLoop::new` / `EventLoopBuilder::build`, so call `start` after
+/// the event loop exists (inside Tauri's `setup`), and never call
+/// `set_device_event_filter` afterwards: it re-registers and takes the keyboard away from
+/// this hook.
 pub fn start(
     tx: TriggerTx,
     params: Arc<EngineParams>,

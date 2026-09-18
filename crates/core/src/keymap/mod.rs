@@ -146,13 +146,15 @@ impl PhysKey {
     }
 }
 
+// `RepeatFilter` keeps a 128-bit held set and a 128-entry timestamp table.
+const _: () = assert!(PhysKey::COUNT <= 128);
+
 #[cfg(test)]
 mod tests {
     use super::PhysKey;
 
     #[test]
     fn index_round_trips() {
-        const { assert!(PhysKey::COUNT <= 128) };
         for i in 0..PhysKey::COUNT {
             let key = PhysKey::from_index(i).expect("in range");
             assert!(key as usize == i);

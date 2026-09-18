@@ -127,7 +127,23 @@ pub(crate) fn run(d: Dispatcher, shared: &Shared) {
     drop(unsafe { Box::from_raw(ctx) });
 }
 
+/// `CGEventTapCallBack` is typed `extern "C-unwind"`, so a plain `extern "C"` fn does not
+/// type-check; instead a panic is caught here and aborts rather than unwinding through
+/// CoreGraphics frames.
 unsafe extern "C-unwind" fn callback(
+    proxy: CGEventTapProxy,
+    ty: CGEventType,
+    event: NonNull<CGEvent>,
+    user_info: *mut c_void,
+) -> *mut CGEvent {
+    let handled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // SAFETY: forwarded unchanged from the system callback.
+        unsafe { on_event(proxy, ty, event, user_info) }
+    }));
+    handled.unwrap_or_else(|_| std::process::abort())
+}
+
+unsafe fn on_event(
     _proxy: CGEventTapProxy,
     ty: CGEventType,
     event: NonNull<CGEvent>,

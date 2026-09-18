@@ -8,6 +8,18 @@ use std::time::Instant;
 use clatterbox_core::keymap::layout;
 use clatterbox_core::{EngineParams, KeyDir, KeySound, PhysKey, RepeatFilter, Trigger, TriggerTx};
 
+/// Number of distinct pan positions a key sound can carry.
+const PAN_BUCKETS: f32 = 12.0;
+
+/// Snaps `x` to one of 12 pan buckets. PRIVACY: the unquantized staggered layout gives every
+/// key its own `x`, which would let `(class, x)` identify the key; after bucketing, every
+/// letter/digit shares its `x` with at least one other letter/digit.
+#[inline]
+fn quantize_x(x: f32) -> f32 {
+    let steps = PAN_BUCKETS - 1.0;
+    (x * steps).round() / steps
+}
+
 pub(crate) struct Dispatcher {
     filter: RepeatFilter,
     params: Arc<EngineParams>,
@@ -44,6 +56,7 @@ impl Dispatcher {
             return;
         }
         let (class, x) = layout::lookup(key);
+        let x = quantize_x(x);
         // Full queue: drop silently.
         let _ = self.tx.push(Trigger::key(KeySound { class, dir, x }));
     }
@@ -80,7 +93,7 @@ mod tests {
         let t = rx.pop().expect("down");
         assert!(t.slot == PackSlot::Main);
         assert!(t.sound.class == KeyClass::Space && t.sound.dir == KeyDir::Down);
-        assert!((t.sound.x - 0.458).abs() < 0.01);
+        assert!(t.sound.x == 5.0 / 11.0);
         assert!(rx.pop().expect("up").sound.dir == KeyDir::Up);
         assert!(rx.pop().is_err());
     }
@@ -97,6 +110,61 @@ mod tests {
         d.dispatch(PhysKey::A, KeyDir::Up, 10);
         assert!(rx.pop().expect("down").sound.dir == KeyDir::Down);
         assert!(rx.pop().is_err());
+    }
+
+    #[test]
+    fn no_alphanumeric_key_has_a_unique_pan() {
+        use PhysKey as K;
+        let keys = [
+            K::Digit1,
+            K::Digit2,
+            K::Digit3,
+            K::Digit4,
+            K::Digit5,
+            K::Digit6,
+            K::Digit7,
+            K::Digit8,
+            K::Digit9,
+            K::Digit0,
+            K::Q,
+            K::W,
+            K::E,
+            K::R,
+            K::T,
+            K::Y,
+            K::U,
+            K::I,
+            K::O,
+            K::P,
+            K::A,
+            K::S,
+            K::D,
+            K::F,
+            K::G,
+            K::H,
+            K::J,
+            K::K,
+            K::L,
+            K::Z,
+            K::X,
+            K::C,
+            K::V,
+            K::B,
+            K::N,
+            K::M,
+        ];
+        let xs: Vec<f32> = keys
+            .iter()
+            .map(|&k| quantize_x(layout::lookup(k).1))
+            .collect();
+        for &x in &xs {
+            assert!(xs.iter().filter(|&&o| o == x).count() >= 2);
+        }
+        assert!(quantize_x(layout::lookup(K::A).1) == quantize_x(layout::lookup(K::S).1));
+        // Every output is one of the 12 bucket positions.
+        for &x in &xs {
+            assert!(((x * 11.0).round() - x * 11.0).abs() < 1e-5);
+        }
     }
 
     #[test]
