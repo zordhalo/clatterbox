@@ -53,3 +53,7 @@ lto = true
 opt-level = 3
 panic = "unwind"
 strip = true
+
+# The realtime mixer and synth live in core; keep them fast in `tauri dev` too.
+[profile.dev.package.clatterbox-core]
+opt-level = 2
