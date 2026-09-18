@@ -598,7 +598,7 @@ pub struct PackRegistry { builtin_dir: Option<PathBuf>, user_dir: PathBuf, infos
 impl PackRegistry {
     pub fn new(builtin_dir: Option<PathBuf>, user_dir: PathBuf) -> Self;
     pub fn rescan(&mut self) -> &[PackInfo];            // manifest-only parse, cheap
-    pub fn list(&self) -> &[PackInfo];                   // synth first, then builtin, then user; by name
+    pub fn list(&self) -> &[PackInfo];                   // builtin, then user, then synth; by name (§16)
     pub fn load(&self, id: &str, synth_rate: u32) -> Result<LoadedPack, PackError>;
     /// Validates `src` fully (decode included), then copies into user_dir/<dir name>.
     /// Fails if the id exists. Returns the new info.

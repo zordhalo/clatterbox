@@ -19,6 +19,7 @@ pub fn open(app: &AppHandle) -> tauri::Result<()> {
         .title("Clatterbox Settings")
         .inner_size(440.0, 620.0)
         .resizable(false)
+        .maximizable(false)
         .center()
         .build()?;
 

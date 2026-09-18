@@ -170,17 +170,19 @@ impl PackRegistry {
 
     /// Manifest-only parse, cheap.
     pub fn rescan(&mut self) -> &[PackInfo] {
-        let mut infos: Vec<PackInfo> = SynthPreset::ALL.iter().map(|p| p.info()).collect();
-        infos.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut infos: Vec<PackInfo> = Vec::new();
         if let Some(b) = &self.builtin_dir {
             infos.extend(scan_dir(b, PackKind::Builtin));
         }
         infos.extend(scan_dir(&self.user_dir, PackKind::User));
+        let mut synth: Vec<PackInfo> = SynthPreset::ALL.iter().map(|p| p.info()).collect();
+        synth.sort_by(|a, b| a.name.cmp(&b.name));
+        infos.extend(synth);
         self.infos = infos;
         &self.infos
     }
 
-    /// Synth first, then builtin, then user; by name.
+    /// Builtin recordings first, then user packs, then procedural synth; by name within each.
     pub fn list(&self) -> &[PackInfo] {
         &self.infos
     }

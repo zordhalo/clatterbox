@@ -21,10 +21,9 @@ fn scan_ordering_and_invalid_dir_skipped() {
     let user = fixture_user_dir();
     let mut reg = PackRegistry::new(None, user.0.clone());
     let ids: Vec<String> = reg.rescan().iter().map(|i| i.id.clone()).collect();
-    assert_eq!(&ids[..2], ["synth/click", "synth/thock"]);
     // user packs sorted by name: "Bad Missing File", "bad-schema" (invalid → dir name), "Valid Full", "Valid Min"
     assert_eq!(
-        &ids[2..],
+        &ids[..4],
         [
             "user/bad-missing-file",
             "user/bad-schema",
@@ -32,6 +31,7 @@ fn scan_ordering_and_invalid_dir_skipped() {
             "user/valid-min"
         ]
     );
+    assert_eq!(&ids[4..], ["synth/click", "synth/thock"]);
     let bad = reg
         .list()
         .iter()

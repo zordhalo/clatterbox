@@ -20,13 +20,22 @@ use tauri_plugin_autostart::MacosLauncher;
 use packs::PackCache;
 use persist::Persister;
 use state::AppState;
+use tracing::Level;
+use tracing_subscriber::{filter::Targets, prelude::*};
 
 /// Sample rate procedural (`synth/*`) packs are generated at; the audio engine resamples per
 /// SPEC §4.4/§6.
 pub(crate) const SYNTH_RATE: u32 = 48_000;
 
 pub fn run() {
-    tracing_subscriber::fmt::init();
+    // symphonia logs every unknown WAV chunk at INFO; keep our own logs at INFO.
+    let filter = Targets::new()
+        .with_default(Level::INFO)
+        .with_target("symphonia", Level::WARN);
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(filter)
+        .init();
 
     tauri::Builder::default()
         // Single-instance must be registered first.
