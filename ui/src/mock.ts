@@ -22,7 +22,10 @@ let settings: Settings = {
   launch_at_login: false,
 };
 
-const packs: PackInfo[] = [
+/** `?mock=errors` also shows the invalid-pack row; plain `?mock` stays clean for screenshots. */
+const showErrors = new URLSearchParams(location.search).get("mock") === "errors";
+
+const allPacks: PackInfo[] = [
   {
     id: "builtin/classic",
     name: "Classic Office",
@@ -85,6 +88,10 @@ const packs: PackInfo[] = [
   },
 ];
 
+function visiblePacks(): PackInfo[] {
+  return showErrors ? allPacks : allPacks.filter((p) => p.valid);
+}
+
 let hookStatus: HookStatus = { state: "running", backend: "raw_input" };
 let audioStatus: AudioStatus = {
   state: "running",
@@ -142,10 +149,10 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
       return settings as unknown as T;
     }
     case "list_packs":
-      return packs as unknown as T;
+      return visiblePacks() as unknown as T;
     case "reload_packs":
-      packsListeners.forEach((cb) => cb(packs));
-      return packs as unknown as T;
+      packsListeners.forEach((cb) => cb(visiblePacks()));
+      return visiblePacks() as unknown as T;
     case "preview_pack":
       // eslint-disable-next-line no-console
       console.info(`[mock] preview_pack ${String(args?.id)}`);
@@ -163,8 +170,8 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
         error: null,
         derived: ["space.down", "default.up"],
       };
-      packs.push(info);
-      packsListeners.forEach((cb) => cb(packs));
+      allPacks.push(info);
+      packsListeners.forEach((cb) => cb(visiblePacks()));
       return info as unknown as T;
     }
     case "open_packs_dir":
