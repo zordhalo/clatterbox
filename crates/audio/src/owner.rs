@@ -77,10 +77,13 @@ impl Owner {
             .unwrap_or(48_000);
         let mut choice = choose_config(&supported, default_rate)
             .ok_or_else(|| failed("no supported output format (need f32, i32 or i16)".into()))?;
-        self.host
-            .lock()
-            .mixer
-            .set_output_rate(choice.config.sample_rate);
+        {
+            // No stream is alive here, so the lock is uncontended. Triggers queued while there
+            // was no stream are stale: drop them rather than play them as one burst.
+            let mut host = self.host.lock();
+            host.mixer.set_output_rate(choice.config.sample_rate);
+            host.discard_triggers();
+        }
 
         let build =
             |c: &Choice| build_stream(&device, c, self.host.clone(), self.tx.clone(), generation);

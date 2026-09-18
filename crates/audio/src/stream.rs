@@ -187,6 +187,19 @@ impl MixerHost {
         }
     }
 
+    /// Drops queued key and preview triggers. Called by the owner thread before a stream is
+    /// (re)built, so keystrokes from a device outage do not replay as one burst.
+    pub(crate) fn discard_triggers(&mut self) -> usize {
+        let mut n = 0;
+        while self.hook_rx.pop().is_ok() {
+            n += 1;
+        }
+        while self.preview_rx.pop().is_ok() {
+            n += 1;
+        }
+        n
+    }
+
     /// Main-thread fallback when the control queue is full (e.g. no stream is draining it).
     /// Returns every retired pack so the caller can drop it off the audio thread.
     pub(crate) fn apply_now(&mut self, cmd: MixerCmd, dropped: &mut Vec<Arc<LoadedPack>>) {
@@ -304,6 +317,34 @@ mod tests {
         assert_eq!(c.config.sample_rate, 22_050);
         assert!(choose_config(&[range(2, 1, 2, ANY_BUF, SampleFormat::U8)], 48_000).is_none());
         assert!(choose_config(&[], 48_000).is_none());
+    }
+
+    #[test]
+    fn discard_triggers_empties_queues() {
+        use clatterbox_core::{EngineParams, KeyClass, KeyDir, KeySound, Settings};
+        let params = Arc::new(EngineParams::from_settings(&Settings::default()));
+        let (mut hook_tx, hook_rx) = rtrb::RingBuffer::new(8);
+        let (mut prev_tx, prev_rx) = rtrb::RingBuffer::new(8);
+        let (_ctl_tx, ctl_rx) = rtrb::RingBuffer::new(2);
+        let (garbage_tx, _garbage_rx) = rtrb::RingBuffer::new(2);
+        let mut host = MixerHost::new(
+            Mixer::new(params, 48_000, 1),
+            hook_rx,
+            prev_rx,
+            ctl_rx,
+            garbage_tx,
+        );
+        let t = Trigger::key(KeySound {
+            class: KeyClass::Default,
+            dir: KeyDir::Down,
+            x: 0.5,
+        });
+        for _ in 0..5 {
+            hook_tx.push(t).ok().unwrap();
+        }
+        prev_tx.push(Trigger::preview(t.sound)).ok().unwrap();
+        assert_eq!(host.discard_triggers(), 6);
+        assert_eq!(host.discard_triggers(), 0);
     }
 
     #[test]
