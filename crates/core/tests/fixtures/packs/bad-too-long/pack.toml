@@ -1,0 +1,7 @@
+schema = 1
+name = "Bad Too Long"
+author = "Clatterbox tests"
+license = "CC0-1.0"
+
+[sounds.default]
+down = ["long.wav"]

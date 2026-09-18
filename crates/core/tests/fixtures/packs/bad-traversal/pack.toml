@@ -1,0 +1,7 @@
+schema = 1
+name = "Bad Traversal"
+author = "Clatterbox tests"
+license = "CC0-1.0"
+
+[sounds.default]
+down = ["../valid-min/a.wav"]

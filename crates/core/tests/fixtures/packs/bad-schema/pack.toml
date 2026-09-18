@@ -1,0 +1,7 @@
+schema = 2
+name = "Bad Schema"
+author = "Clatterbox tests"
+license = "CC0-1.0"
+
+[sounds.default]
+down = ["a.wav"]

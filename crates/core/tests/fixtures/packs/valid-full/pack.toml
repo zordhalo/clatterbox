@@ -1,0 +1,19 @@
+schema = 1
+name = "Valid Full"
+author = "Clatterbox tests"
+license = "CC0-1.0"
+source_url = "https://example.org/valid-full"
+description = "Every optional field."
+gain_db = -2.0
+
+[sounds.default]
+down = ["default-down-1.wav", "default-down-2.wav"]
+up = ["default-up-1.wav"]
+
+[sounds.space]
+down = ["sub/space-down-1.wav"]
+gain_db = 1.5
+
+[sounds.enter]
+down = ["enter-down-1.wav"]
+gain_db = -3.0
