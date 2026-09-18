@@ -140,18 +140,8 @@ pub fn import_pack(app: AppHandle, src_dir: String) -> Result<PackInfo, CmdError
         ));
     }
     let state = app.state::<AppState>();
-    let registry = state.registry.lock();
-    if let Some(dir_name) = src.file_name().and_then(|n| n.to_str()) {
-        let candidate_id = format!("user/{dir_name}");
-        if registry.list().iter().any(|p| p.id == candidate_id) {
-            return Err(CmdError::new(
-                ErrorCode::Exists,
-                format!("a pack named '{dir_name}' is already imported"),
-            ));
-        }
-    }
-    drop(registry);
-
+    // `import_dir` now reports a duplicate id as `PackErrorKind::Exists`, which
+    // `CmdError::from` maps to `ErrorCode::Exists` — no need to pre-check here.
     let info = state.registry.lock().import_dir(&src)?;
     let infos = state.registry.lock().list().to_vec();
     let _ = app.emit(events::PACKS_CHANGED, &infos);
