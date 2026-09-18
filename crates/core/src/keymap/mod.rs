@@ -133,4 +133,30 @@ pub enum PhysKey {
 impl PhysKey {
     /// Number of variants (including `Unknown`).
     pub const COUNT: usize = PhysKey::Unknown as usize + 1;
+
+    /// Inverse of `key as usize`; `None` if `i >= COUNT`.
+    pub const fn from_index(i: usize) -> Option<PhysKey> {
+        if i < Self::COUNT {
+            // SAFETY: `PhysKey` is `repr(u8)` with implicit, contiguous discriminants
+            // `0..COUNT`, and `i < COUNT <= 128` fits in `u8`.
+            Some(unsafe { std::mem::transmute::<u8, PhysKey>(i as u8) })
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PhysKey;
+
+    #[test]
+    fn index_round_trips() {
+        const { assert!(PhysKey::COUNT <= 128) };
+        for i in 0..PhysKey::COUNT {
+            let key = PhysKey::from_index(i).expect("in range");
+            assert!(key as usize == i);
+        }
+        assert!(PhysKey::from_index(PhysKey::COUNT).is_none());
+    }
 }

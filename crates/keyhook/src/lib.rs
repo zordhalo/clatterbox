@@ -6,37 +6,47 @@
 //!
 //! Note: the platform modules are named `windows`/`macos`/`linux`; at the crate root `windows`
 //! would be ambiguous with the `windows` crate, so refer to the crate as `::windows::…`.
-// WP0 stub: remove this allow once implemented (WP3).
-#![allow(unused_variables, dead_code)]
 
 mod dispatch;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+mod shared;
 #[cfg(windows)]
 mod windows;
 
-use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 
 use clatterbox_core::{EngineParams, HookStatus, TriggerTx};
 
+use dispatch::Dispatcher;
+use shared::Shared;
+
 pub struct HookHandle {
     thread: Option<JoinHandle<()>>,
-    status: Arc<Mutex<HookStatus>>,
+    shared: Arc<Shared>,
 }
 
 impl HookHandle {
     pub fn status(&self) -> HookStatus {
-        match self.status.lock() {
-            Ok(s) => s.clone(),
-            Err(poisoned) => poisoned.into_inner().clone(),
-        }
+        self.shared.status()
     }
 
+    /// Stops the backend and joins its thread.
     pub fn stop(self) {
-        todo!("WP3")
+        drop(self);
+    }
+}
+
+impl Drop for HookHandle {
+    fn drop(&mut self) {
+        self.shared.request_stop();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
     }
 }
 
@@ -46,7 +56,48 @@ pub fn start(
     params: Arc<EngineParams>,
     on_status: Box<dyn Fn(HookStatus) + Send + Sync>,
 ) -> HookHandle {
-    todo!("WP3")
+    let shared = Arc::new(Shared::new(on_status));
+    let dispatcher = Dispatcher::new(params, tx);
+    let worker = shared.clone();
+    let spawned = thread::Builder::new()
+        .name("clatterbox-keyhook".into())
+        .spawn(move || {
+            let run = catch_unwind(AssertUnwindSafe(|| run_backend(dispatcher, &worker)));
+            if run.is_err() {
+                worker.failed("keyboard hook thread panicked");
+            }
+        });
+    let thread = match spawned {
+        Ok(t) => Some(t),
+        Err(e) => {
+            shared.failed(format!("could not spawn keyboard hook thread: {e}"));
+            None
+        }
+    };
+    HookHandle { thread, shared }
+}
+
+#[cfg(windows)]
+fn run_backend(d: Dispatcher, shared: &Shared) {
+    windows::run(d, shared);
+}
+
+#[cfg(target_os = "macos")]
+fn run_backend(d: Dispatcher, shared: &Shared) {
+    macos::run(d, shared);
+}
+
+#[cfg(target_os = "linux")]
+fn run_backend(d: Dispatcher, shared: &Shared) {
+    linux::run(d, shared);
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+fn run_backend(d: Dispatcher, shared: &Shared) {
+    drop(d);
+    shared.set_status(HookStatus::Unsupported {
+        reason: "no keyboard backend for this operating system".into(),
+    });
 }
 
 /// macOS: CGRequestListenEventAccess + returns whether granted now. Others: true.
@@ -64,6 +115,8 @@ pub fn request_permission() -> bool {
 pub const MACOS_PRIVACY_URL: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent";
 
-pub const LINUX_INPUT_GROUP_HINT: &str = "On Wayland, Clatterbox needs read access to keyboard \
-devices. Run `sudo usermod -aG input $USER`, then log out and back in. Note: membership in \
-`input` lets any program you run read input devices.";
+/// UI copy for `HookStatus::NeedsPermission` on Wayland (SPEC §3.4). Informational only.
+pub const LINUX_INPUT_GROUP_HINT: &str = "On Wayland, Clatterbox can only hear keys if your user \
+can read keyboard devices (the `input` group). Clatterbox will not change this for you. Be aware \
+that `input` group membership lets any program you run read all input devices. See the README \
+for details.";
