@@ -42,3 +42,10 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+      - name: Verify macOS ad-hoc signature
+        if: matrix.platform == 'macos-latest'
+        run: |
+          APP=target/universal-apple-darwin/release/bundle/macos/Clatterbox.app
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Signature=adhoc|Identifier|Format"
+          for b in "$APP"/Contents/MacOS/*; do lipo -archs "$b"; done

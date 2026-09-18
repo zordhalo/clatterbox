@@ -36,11 +36,17 @@ that's expected for an unsigned open-source build, not a sign that something's w
 
 ### macOS
 
-1. Download the `.dmg` from Releases and drag Clatterbox into Applications.
-2. Because the build isn't notarized, Gatekeeper blocks a normal double-click. Instead,
-   **right-click (or Control-click) the app → Open**, then confirm in the dialog that appears.
-   This only needs to happen once per build; note that on an unsigned/ad-hoc build, updating
-   Clatterbox (a new build with a new signature) means macOS will ask again.
+1. Download the `.dmg` from Releases and drag Clatterbox into Applications. The build is
+   universal (Apple Silicon and Intel) and needs macOS 14.2 or later.
+2. The build is ad-hoc signed but not notarized, so Gatekeeper blocks the first launch.
+   - **macOS 15 (Sequoia) and later:** open Clatterbox once and dismiss the warning. Then go to
+     System Settings → Privacy & Security, scroll to the message about Clatterbox, and click
+     **Open Anyway**.
+   - **macOS 14:** right-click (or Control-click) the app → **Open**, then confirm.
+   - **Terminal alternative (any version):** `xattr -dr com.apple.quarantine /Applications/Clatterbox.app`
+
+   This happens once per build. Each new build has a new signature, so macOS asks again after
+   an update, and you may need to re-grant Input Monitoring too.
 3. On first launch, Clatterbox needs **Input Monitoring** permission to hear keystrokes — it
    does **not** need Accessibility. A banner in the settings window walks you through it:
    click "Allow keyboard access," grant the permission in System Settings → Privacy & Security

@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "clatterbox"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clatterbox-audio",
  "clatterbox-core",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "clatterbox-audio"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clatterbox-core",
  "cpal",
@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "clatterbox-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fastrand",
  "rtrb",
@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "clatterbox-keyhook"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clatterbox-core",
  "evdev",
