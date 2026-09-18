@@ -31,7 +31,14 @@ impl CmdError {
 
 impl From<clatterbox_core::PackError> for CmdError {
     fn from(err: clatterbox_core::PackError) -> Self {
-        Self::new(ErrorCode::PackInvalid, err.to_string())
+        use clatterbox_core::pack::PackErrorKind;
+        let code = match err.kind {
+            PackErrorKind::Invalid => ErrorCode::PackInvalid,
+            PackErrorKind::NotFound => ErrorCode::NotFound,
+            PackErrorKind::Exists => ErrorCode::Exists,
+            PackErrorKind::Io => ErrorCode::Io,
+        };
+        Self::new(code, err.to_string())
     }
 }
 
