@@ -2,6 +2,8 @@
 
 Mechanical keyboard sounds for every keystroke, on a keyboard that doesn't make any.
 
+**[Try it in your browser →](https://clatterbox.runs-on.dev)** · **[Download](https://github.com/zordhalo/clatterbox/releases/latest)**
+
 Clatterbox is a small, open-source tray app for Windows, macOS, and Linux. It listens to your
 keyboard and plays a sample or a synthesized click on every key down and key up: stereo panning
 by key position, per-keystroke pitch and gain variation, switchable sound packs, low latency,
