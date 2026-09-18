@@ -62,12 +62,11 @@ fn deterministic() {
     );
 }
 
-/// SPEC §6 / §11: < 10 ms per preset in release. Unoptimized builds get 100 ms (the §11 50 ms
-/// figure holds once `clatterbox-core` builds with opt-level in the dev profile). Best of 3 runs
-/// to be robust against a loaded CI machine.
+/// SPEC §6 / §11: < 10 ms per preset in release, < 50 ms in debug (the dev profile builds
+/// `clatterbox-core` optimized). Best of 3 runs to be robust against a loaded CI machine.
 #[test]
 fn fast_enough() {
-    let budget_ms = if cfg!(debug_assertions) { 100.0 } else { 10.0 };
+    let budget_ms = if cfg!(debug_assertions) { 50.0 } else { 10.0 };
     for preset in SynthPreset::ALL {
         let best = (0..3)
             .map(|_| {
