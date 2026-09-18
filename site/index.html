@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clatterbox — mechanical keyboard sounds for any keyboard</title>
+<meta name="description" content="Clatterbox is a free, open-source tray app that gives any keyboard the sound of a mechanical one. Zero network access, zero keystroke logging.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-row">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">⌁</span>
+      Clatterbox
+    </a>
+    <nav class="topnav" aria-label="Primary">
+      <a href="#demo">Demo</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#build-a-pack">Custom packs</a>
+      <a href="#download" class="topnav-cta">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero wrap" id="demo">
+    <div class="hero-copy">
+      <p class="kicker">for windows, macos &amp; linux</p>
+      <h1>Every key you press<br>should sound like it matters.</h1>
+      <p class="lede">
+        Clatterbox sits quietly in your tray and gives your keyboard — any keyboard,
+        membrane or otherwise — the click and thock of a proper mechanical board.
+        It's free, it's open source, and it never once looks at what you're typing.
+      </p>
+      <div class="hero-actions">
+        <a href="#download" class="btn btn-primary">Get Clatterbox</a>
+        <a href="https://github.com/zordhalo/clatterbox" class="btn btn-ghost">View on GitHub</a>
+      </div>
+    </div>
+
+    <div class="board" id="board">
+      <div class="board-head">
+        <div class="board-head-left">
+          <span class="led" id="led" aria-hidden="true"></span>
+          <span class="board-label">try it — type below</span>
+        </div>
+        <div class="pack-switch" role="radiogroup" aria-label="Sound pack">
+          <button type="button" class="pack-btn is-active" data-pack="classic" role="radio" aria-checked="true">Classic Office</button>
+          <button type="button" class="pack-btn" data-pack="tactile" role="radio" aria-checked="false">Tactile</button>
+          <button type="button" class="pack-btn" data-pack="thock" role="radio" aria-checked="false">Thock</button>
+          <button type="button" class="pack-btn" data-pack="click" role="radio" aria-checked="false">Click</button>
+        </div>
+      </div>
+
+      <div class="board-body">
+        <label class="sr-only" for="type-surface">Type here to hear the selected sound pack</label>
+        <textarea
+          id="type-surface"
+          class="type-surface"
+          rows="3"
+          placeholder="Nothing plays until you press a key here — go on."
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        ></textarea>
+
+        <div class="key-strip" id="key-strip" aria-hidden="true"></div>
+      </div>
+
+      <p class="board-foot" id="board-foot">Sound is off until your first keystroke. No audio plays automatically.</p>
+    </div>
+  </section>
+
+  <section class="features wrap" id="features">
+    <h2>What it does</h2>
+    <div class="feature-grid">
+      <article class="feature feature-big">
+        <h3>Down <em>and</em> up</h3>
+        <p>Real mechanical switches make two sounds per press — the bottom-out and the release. Clatterbox plays both, so a fast typist sounds like one.</p>
+      </article>
+      <article class="feature">
+        <h3>Panned to key position</h3>
+        <p>Press Q and the click leans left. Press P and it leans right. The stereo image tracks where your hands actually are on the board.</p>
+      </article>
+      <article class="feature">
+        <h3>No two clacks alike</h3>
+        <p>Pitch drifts a little on every strike, drawn from a handful of real takes per key, so long typing sessions don't loop.</p>
+      </article>
+      <article class="feature">
+        <h3>Four packs, out of the box</h3>
+        <p>Classic Office and Tactile are recordings of real switches under CC0 license. Thock and Click are synthesized — no samples, no loading, always on.</p>
+      </article>
+      <article class="feature">
+        <h3>Lives in the tray</h3>
+        <p>Switch packs, mute, or quit from the tray icon, with an optional toggle to launch at login. The settings window opens only when you ask for it.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="privacy wrap" id="privacy">
+    <div class="privacy-inner">
+      <h2>What Clatterbox never does</h2>
+      <p class="privacy-lede">
+        A program that hears every keystroke is a program you should be able to trust completely.
+        These aren't settings you can turn off — they're not built in the first place.
+      </p>
+      <ul class="privacy-list">
+        <li><strong>Never logs a key.</strong> The keyboard hook reduces each press to a sound class and a pan position, in a local variable, and drops it. Nothing is written down.</li>
+        <li><strong>Never phones home.</strong> No updater, no telemetry, no crash reporter. Zero outbound network connections — the app's content-security policy forbids remote origins outright.</li>
+        <li><strong>Never needs your samples to work.</strong> The synthesized packs generate sound in real time. Delete every audio file on disk and Clatterbox still clicks.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="build-pack wrap" id="build-a-pack">
+    <div class="build-pack-copy">
+      <h2>Bring your own switches</h2>
+      <p>
+        Recorded your own board, or found a set of samples you like better? A pack is a folder
+        and one text file. Drop it in Clatterbox's packs folder, and it shows up in the switcher —
+        no rebuild, no plugin API to learn.
+      </p>
+      <ul class="build-pack-notes">
+        <li>Only <code>default.down</code> is required — Clatterbox derives release sounds and special keys (space, enter, backspace, modifiers) from it automatically.</li>
+        <li>Supports WAV, OGG, FLAC, and MP3, up to 2 seconds per sample.</li>
+        <li>Per-class gain lets you level-match samples pulled from different recordings.</li>
+      </ul>
+    </div>
+    <pre class="pack-toml" aria-label="Example pack.toml file"><code><span class="c-com"># my-pack/pack.toml</span>
+schema = 1
+name = <span class="c-str">"Slate Linear"</span>
+author = <span class="c-str">"Jane Doe"</span>
+license = <span class="c-str">"CC0-1.0"</span>
+description = <span class="c-str">"Deep, muted linear."</span>
+
+<span class="c-sec">[sounds.default]</span>
+down = [<span class="c-str">"down-1.wav"</span>, <span class="c-str">"down-2.wav"</span>]
+up   = [<span class="c-str">"up-1.wav"</span>]
+
+<span class="c-sec">[sounds.space]</span>
+down = [<span class="c-str">"space-down-1.wav"</span>]</code></pre>
+  </section>
+
+  <section class="download wrap" id="download">
+    <h2>Download Clatterbox</h2>
+    <p class="download-lede">Free. Open source under Apache-2.0. No account, no signup.</p>
+    <div class="download-grid">
+      <a class="download-card" href="https://github.com/zordhalo/clatterbox/releases/latest">
+        <span class="download-os">Windows</span>
+        <span class="download-sub">.msi installer</span>
+      </a>
+      <a class="download-card" href="https://github.com/zordhalo/clatterbox/releases/latest">
+        <span class="download-os">macOS</span>
+        <span class="download-sub">.dmg, Apple Silicon &amp; Intel</span>
+      </a>
+      <a class="download-card" href="https://github.com/zordhalo/clatterbox/releases/latest">
+        <span class="download-os">Linux</span>
+        <span class="download-sub">.AppImage &amp; .deb</span>
+      </a>
+    </div>
+    <p class="download-note">v0.1 releases are unsigned — your OS will ask you to confirm the first launch. Instructions are in the README.</p>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <p>Clatterbox is free and open source, released under the <a href="https://github.com/zordhalo/clatterbox/blob/main/LICENSE">Apache-2.0 license</a>.</p>
+    <a href="https://github.com/zordhalo/clatterbox">github.com/zordhalo/clatterbox</a>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

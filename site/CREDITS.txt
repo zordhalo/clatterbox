@@ -1,0 +1,27 @@
+Clatterbox landing page — third-party audio credits
+====================================================
+
+The in-browser demo (site/app.js) uses a small subset of the same CC0 recordings
+that ship in the app's "Classic Office" and "Tactile" builtin packs, plus two
+fully synthesized packs ("Thock", "Click") generated at runtime with the Web
+Audio API — no samples, no attribution needed for those two.
+
+Classic Office demo samples (site/assets/samples/classic/)
+  Source:  "Keyboard Soundpack 1: Typing and Single Keystrokes"
+  Author:  unicaegames
+  License: CC0 1.0 (public domain dedication)
+  URL:     https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes
+  Files:   down-1.wav .. down-4.wav, renamed from keypress-001/005/009/013.wav.
+           Unmodified audio, only renamed.
+
+Tactile demo samples (site/assets/samples/tactile/)
+  Source:  Freesound.org
+  Authors: StavSounds (key-down takes), Foxfire- (key-release take)
+  License: CC0 1.0 (public domain dedication)
+  URL:     https://freesound.org/people/StavSounds/packs/42151/
+  Files:   down-1.mp3 .. down-4.mp3, renamed from StavSounds' 766628/766630/766633/766637.mp3.
+           up-1.mp3, renamed from Foxfire-'s 570755_key-release.mp3.
+           Unmodified audio, only renamed.
+
+None of these files, nor any other Clatterbox asset, is derived from or
+resembles Klack (tryklack.com) in any way.
