@@ -45,6 +45,9 @@ pub struct SoundFiles {
     pub down: Vec<String>,
     #[serde(default)]
     pub up: Vec<String>,
+    /// Optional per-class trim, clamped to `-24.0..=12.0` (loudness-match mixed sources).
+    #[serde(default)]
+    pub gain_db: Option<f32>,
 }
 
 /// Parse + validate field rules (lengths, schema, source_url scheme, gain clamp).

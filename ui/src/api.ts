@@ -29,6 +29,8 @@ export interface PackInfo {
   kind: PackKind;
   valid: boolean;
   error: string | null;
+  /** Derived sets (SPEC §5.2.1), e.g. ["space.down", "default.up"]; empty for synth. */
+  derived: string[];
 }
 
 export type HookStatus =

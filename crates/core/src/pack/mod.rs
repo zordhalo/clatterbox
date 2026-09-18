@@ -3,6 +3,7 @@
 #![allow(unused_variables, dead_code)]
 
 pub mod decode;
+pub mod derive;
 pub mod manifest;
 pub mod registry;
 
@@ -30,6 +31,8 @@ pub struct PackInfo {
     pub kind: PackKind,
     pub valid: bool,
     pub error: Option<String>,
+    /// Derived sets (SPEC §5.2.1), e.g. `["space.down", "default.up"]`; empty for synth.
+    pub derived: Vec<String>,
 }
 
 /// Mono `f32` sample at its native rate.
@@ -47,13 +50,13 @@ pub struct LoadedPack {
     pub info: PackInfo,
     /// Linear gain from `gain_db`.
     pub gain: f32,
-    /// Indexed by `KeyClass as usize`.
+    /// Indexed by `KeyClass as usize`. Fully resolved at load: missing sets are derived into
+    /// real buffers (SPEC §5.2.1), so no fallback lookup happens in the callback.
     sets: [SampleSet; KeyClass::COUNT],
-    // WP2: resolved fallback indices (SPEC §5.2, §16.3) live here.
 }
 
 impl LoadedPack {
-    /// Fallback-resolved; may be empty for `Up`.
+    /// Resolved (explicit or derived) set; may be empty only for `Up`.
     pub fn samples(&self, class: KeyClass, dir: KeyDir) -> &[Sample] {
         todo!("WP2")
     }
