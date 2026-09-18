@@ -1,7 +1,26 @@
 // Typed IPC contract mirroring the Rust types (SPEC §4.6, §5.4, §8.1, §8.3, §8.4).
 // Phase 0 contract; WP4 owns this file afterwards.
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+
+// `?mock` dev mode (SPEC §13 WP4): swap the transport for an in-memory fixture so the UI can be
+// built and screenshotted without a running Tauri backend. `import.meta.env.DEV` is inlined to
+// `false` in production builds, so this whole branch (and the ./mock chunk) is dead-code-eliminated.
+const mockImpl =
+  import.meta.env.DEV && new URLSearchParams(location.search).has("mock")
+    ? await import("./mock")
+    : null;
+
+function callInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  return mockImpl ? mockImpl.mockInvoke<T>(cmd, args) : tauriInvoke<T>(cmd, args);
+}
+
+function callListen<T>(event: string, cb: (payload: T) => void): Promise<UnlistenFn> {
+  return mockImpl
+    ? mockImpl.mockListen<T>(event, cb)
+    : tauriListen<T>(event, (e) => cb(e.payload));
+}
 
 export interface Settings {
   version: number;
@@ -73,21 +92,25 @@ export const EVENTS = {
   statusChanged: "status-changed",
 } as const;
 
-export const getSettings = () => invoke<Settings>("get_settings");
+export const getSettings = () => callInvoke<Settings>("get_settings");
 export const updateSettings = (patch: SettingsPatch) =>
-  invoke<Settings>("update_settings", { patch });
-export const listPacks = () => invoke<PackInfo[]>("list_packs");
-export const reloadPacks = () => invoke<PackInfo[]>("reload_packs");
-export const previewPack = (id: string) => invoke<null>("preview_pack", { id });
-export const importPack = (srcDir: string) => invoke<PackInfo>("import_pack", { srcDir });
-export const openPacksDir = () => invoke<null>("open_packs_dir");
-export const getStatus = () => invoke<Status>("get_status");
-export const requestInputPermission = () => invoke<HookStatus>("request_input_permission");
-export const restartApp = () => invoke<never>("restart_app");
+  callInvoke<Settings>("update_settings", { patch });
+export const listPacks = () => callInvoke<PackInfo[]>("list_packs");
+export const reloadPacks = () => callInvoke<PackInfo[]>("reload_packs");
+export const previewPack = (id: string) => callInvoke<null>("preview_pack", { id });
+export const importPack = (srcDir: string) => callInvoke<PackInfo>("import_pack", { srcDir });
+export const openPacksDir = () => callInvoke<null>("open_packs_dir");
+export const getStatus = () => callInvoke<Status>("get_status");
+export const requestInputPermission = () => callInvoke<HookStatus>("request_input_permission");
+export const restartApp = () => callInvoke<never>("restart_app");
 
 export const onSettingsChanged = (cb: (s: Settings) => void): Promise<UnlistenFn> =>
-  listen<Settings>(EVENTS.settingsChanged, (e) => cb(e.payload));
+  callListen<Settings>(EVENTS.settingsChanged, cb);
 export const onPacksChanged = (cb: (p: PackInfo[]) => void): Promise<UnlistenFn> =>
-  listen<PackInfo[]>(EVENTS.packsChanged, (e) => cb(e.payload));
+  callListen<PackInfo[]>(EVENTS.packsChanged, cb);
 export const onStatusChanged = (cb: (s: Status) => void): Promise<UnlistenFn> =>
-  listen<Status>(EVENTS.statusChanged, (e) => cb(e.payload));
+  callListen<Status>(EVENTS.statusChanged, cb);
+
+/** Folder picker for pack import (SPEC §9.4). Mocked under `?mock` (no dialog plugin in a bare browser). */
+export const pickPackFolder = async (): Promise<string | null> =>
+  mockImpl ? mockImpl.mockPickFolder() : ((await dialogOpen({ directory: true })) ?? null);

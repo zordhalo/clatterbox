@@ -6,7 +6,94 @@
     <title>Clatterbox Settings</title>
   </head>
   <body>
-    <main id="app"></main>
+    <div id="app" class="app">
+      <div id="banner" class="banner" hidden>
+        <p id="banner-text" class="banner-text"></p>
+        <button id="banner-action" class="banner-action" hidden></button>
+      </div>
+
+      <header class="header">
+        <div class="header-title">
+          <span class="header-mark" aria-hidden="true"></span>
+          <h1>Clatterbox</h1>
+        </div>
+        <label class="switch" title="Sound enabled">
+          <input type="checkbox" id="enabled-input" role="switch" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span class="sr-only">Sound enabled</span>
+        </label>
+      </header>
+
+      <main class="body">
+        <section class="card" aria-label="Volume">
+          <div class="row row-slider">
+            <label for="volume-input">Volume</label>
+            <output id="volume-value" for="volume-input">60%</output>
+          </div>
+          <input type="range" id="volume-input" class="slider" min="0" max="100" step="1" value="60" />
+        </section>
+
+        <section class="card" aria-labelledby="switch-heading">
+          <h2 id="switch-heading" class="card-heading">Switch</h2>
+          <ul id="pack-list" class="pack-list"></ul>
+          <div class="pack-footer">
+            <button id="import-pack" class="btn" type="button">Import pack…</button>
+            <button id="open-packs-dir" class="btn" type="button">Open packs folder</button>
+            <button id="reload-packs" class="btn btn-ghost" type="button">Reload</button>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="sound-heading">
+          <h2 id="sound-heading" class="card-heading">Sound</h2>
+          <div class="row">
+            <label for="keyup-input">Key-up sounds</label>
+            <label class="switch switch-small">
+              <input type="checkbox" id="keyup-input" role="switch" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+          <div class="row row-slider">
+            <label for="pitch-input">Pitch variation</label>
+            <output id="pitch-value" for="pitch-input">35%</output>
+          </div>
+          <input type="range" id="pitch-input" class="slider" min="0" max="100" step="1" value="35" />
+        </section>
+
+        <section class="card" aria-labelledby="spatial-heading">
+          <div class="row">
+            <label for="spatial-input" id="spatial-heading" class="card-heading card-heading-inline">Spatial audio</label>
+            <label class="switch switch-small">
+              <input type="checkbox" id="spatial-input" role="switch" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+          <div id="spatial-width-group">
+            <div class="row row-slider">
+              <label for="width-input">Width</label>
+              <output id="width-value" for="width-input">60%</output>
+            </div>
+            <input type="range" id="width-input" class="slider" min="0" max="100" step="1" value="60" />
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="general-heading">
+          <h2 id="general-heading" class="card-heading">General</h2>
+          <div class="row">
+            <label for="launch-input">Launch at login</label>
+            <label class="switch switch-small">
+              <input type="checkbox" id="launch-input" role="switch" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span id="version-text">v0.1.0</span>
+        <span class="footer-dot" aria-hidden="true">·</span>
+        <span>No keystrokes are recorded, stored, or sent anywhere.</span>
+      </footer>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
