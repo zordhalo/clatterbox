@@ -101,6 +101,12 @@ pub fn run() {
             engine.set_pack(clatterbox_core::PackSlot::Main, loaded_pack);
 
             let hook_status_handle = handle.clone();
+            // Must stay inside `setup`, after tao/wry has created the window and registered its
+            // own Raw Input device (`RegisterRawInputDevices`), because the last registration on
+            // a given usage page/usage wins process-wide: registering ours earlier would replace
+            // tao's, and nothing after this point may call `set_device_event_filter`/re-register
+            // Raw Input on `RIDEV_INPUTSINK`, or it will silently replace this hook's own
+            // registration instead.
             let hook = clatterbox_keyhook::start(
                 hook_tx,
                 params.clone(),
