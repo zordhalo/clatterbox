@@ -1,10 +1,9 @@
-//! Persistent settings: JSON on disk and over IPC (SPEC §8.1). Schema is fixed in Phase 0;
-//! logic (sanitize / merge / load / save) is WP1.
-// WP0 stub: remove this allow once implemented (WP1).
-#![allow(unused_variables, dead_code)]
+//! Persistent settings: JSON on disk and over IPC (SPEC §8.1).
 
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -36,12 +35,53 @@ impl Settings {
 
     /// Clamp ranges, NaN → default, version → 1.
     pub fn sanitize(&mut self) {
-        todo!("WP1")
+        self.version = Self::VERSION;
+        self.volume = sanitize_unit(self.volume, Self::default().volume);
+        self.pitch_variation = sanitize_unit(self.pitch_variation, Self::default().pitch_variation);
+        self.spatial_width = sanitize_unit(self.spatial_width, Self::default().spatial_width);
+        if self.pack.trim().is_empty() {
+            self.pack = Self::DEFAULT_PACK.to_owned();
+        }
     }
 
     /// Applies only the `Some` fields of `patch`; returns a sanitized copy.
     pub fn merged(&self, patch: &SettingsPatch) -> Settings {
-        todo!("WP1")
+        let mut next = self.clone();
+        if let Some(v) = patch.enabled {
+            next.enabled = v;
+        }
+        if let Some(v) = patch.volume {
+            next.volume = v;
+        }
+        if let Some(v) = &patch.pack {
+            next.pack = v.clone();
+        }
+        if let Some(v) = patch.key_up_enabled {
+            next.key_up_enabled = v;
+        }
+        if let Some(v) = patch.pitch_variation {
+            next.pitch_variation = v;
+        }
+        if let Some(v) = patch.spatial_enabled {
+            next.spatial_enabled = v;
+        }
+        if let Some(v) = patch.spatial_width {
+            next.spatial_width = v;
+        }
+        if let Some(v) = patch.launch_at_login {
+            next.launch_at_login = v;
+        }
+        next.sanitize();
+        next
+    }
+}
+
+/// Clamps to `0.0..=1.0`; NaN (or otherwise non-finite) falls back to `default`.
+fn sanitize_unit(value: f32, default: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 1.0)
+    } else {
+        default
     }
 }
 
@@ -83,10 +123,175 @@ pub enum LoadOutcome {
 /// Missing → default + `FirstRun`; parse error → rename to `settings.json.corrupt-<unix_ts>`,
 /// default + `Recovered`.
 pub fn load(path: &Path) -> (Settings, LoadOutcome) {
-    todo!("WP1")
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return (Settings::default(), LoadOutcome::FirstRun);
+        }
+        Err(_) => {
+            recover_corrupt(path);
+            return (Settings::default(), LoadOutcome::Recovered);
+        }
+    };
+
+    match serde_json::from_str::<Settings>(&content) {
+        Ok(mut settings) => {
+            settings.sanitize();
+            (settings, LoadOutcome::Loaded)
+        }
+        Err(_) => {
+            recover_corrupt(path);
+            (Settings::default(), LoadOutcome::Recovered)
+        }
+    }
+}
+
+/// Renames the unreadable/corrupt file out of the way; best-effort (a failed rename still
+/// leaves the caller free to write a fresh default file over `path`).
+fn recover_corrupt(path: &Path) {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let corrupt_path = path.with_file_name(format!(
+        "{}.corrupt-{ts}",
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("settings.json")
+    ));
+    let _ = fs::rename(path, corrupt_path);
 }
 
 /// Write `settings.json.tmp`, fsync, rename.
 pub fn save_atomic(path: &Path, s: &Settings) -> io::Result<()> {
-    todo!("WP1")
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp_path = path.with_file_name(format!(
+        "{}.tmp",
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("settings.json")
+    ));
+    let json = serde_json::to_string_pretty(s)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    {
+        let mut file = File::create(&tmp_path)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+    }
+    fs::rename(&tmp_path, path)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_round_trip() {
+        let s = Settings::default();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Settings = serde_json::from_str(&json).unwrap();
+        assert!(back == s);
+    }
+
+    #[test]
+    fn missing_fields_become_defaults() {
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert!(s == Settings::default());
+    }
+
+    #[test]
+    fn unknown_fields_ignored() {
+        let s: Settings = serde_json::from_str(r#"{"enabled": false, "bogus": 42}"#).unwrap();
+        assert!(!s.enabled);
+    }
+
+    #[test]
+    fn sanitize_clamps_and_fixes_nan() {
+        let mut s = Settings {
+            version: 99,
+            volume: 5.0,
+            pitch_variation: f32::NAN,
+            spatial_width: -3.0,
+            pack: "   ".to_owned(),
+            ..Settings::default()
+        };
+        s.sanitize();
+        assert!(s.version == Settings::VERSION);
+        assert!(s.volume == 1.0);
+        assert!(s.pitch_variation == Settings::default().pitch_variation);
+        assert!(s.spatial_width == 0.0);
+        assert!(s.pack == Settings::DEFAULT_PACK);
+    }
+
+    #[test]
+    fn merged_applies_only_some_fields() {
+        let base = Settings::default();
+        let patch = SettingsPatch {
+            volume: Some(0.9),
+            ..SettingsPatch::default()
+        };
+        let merged = base.merged(&patch);
+        assert!(merged.volume == 0.9);
+        assert!(merged.enabled == base.enabled);
+        assert!(merged.pack == base.pack);
+    }
+
+    #[test]
+    fn load_missing_file_is_first_run() {
+        let dir = std::env::temp_dir().join(format!("clatterbox-test-{}", fastrand_seed()));
+        let path = dir.join("settings.json");
+        let (settings, outcome) = load(&path);
+        assert!(outcome == LoadOutcome::FirstRun);
+        assert!(settings == Settings::default());
+    }
+
+    #[test]
+    fn load_corrupt_file_renames_and_recovers() {
+        let dir = std::env::temp_dir().join(format!("clatterbox-test-{}", fastrand_seed()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        fs::write(&path, b"{not valid json").unwrap();
+
+        let (settings, outcome) = load(&path);
+        assert!(outcome == LoadOutcome::Recovered);
+        assert!(settings == Settings::default());
+        assert!(!path.exists());
+
+        let mut renamed = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned());
+        assert!(renamed.any(|n| n.starts_with("settings.json.corrupt-")));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_atomic_leaves_no_tmp_file() {
+        let dir = std::env::temp_dir().join(format!("clatterbox-test-{}", fastrand_seed()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+
+        save_atomic(&path, &Settings::default()).unwrap();
+
+        assert!(path.exists());
+        assert!(!path.with_file_name("settings.json.tmp").exists());
+
+        let (loaded, outcome) = load(&path);
+        assert!(outcome == LoadOutcome::Loaded);
+        assert!(loaded == Settings::default());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn fastrand_seed() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0)
+            ^ (std::process::id() as u64)
+    }
 }

@@ -1,6 +1,4 @@
 //! Managed application state (SPEC §8.2).
-// WP0 stub: remove this allow once wired (WP1).
-#![allow(dead_code)]
 
 use std::sync::Arc;
 

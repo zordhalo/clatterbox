@@ -1,6 +1,4 @@
 //! IPC error type (SPEC §8.3). Serializes as `{ "code": string, "message": string }`.
-// WP0 stub: remove this allow once used (WP1).
-#![allow(dead_code)]
 
 use serde::Serialize;
 
@@ -28,5 +26,23 @@ impl CmdError {
             code,
             message: message.into(),
         }
+    }
+}
+
+impl From<clatterbox_core::PackError> for CmdError {
+    fn from(err: clatterbox_core::PackError) -> Self {
+        Self::new(ErrorCode::PackInvalid, err.to_string())
+    }
+}
+
+impl From<std::io::Error> for CmdError {
+    fn from(err: std::io::Error) -> Self {
+        Self::new(ErrorCode::Io, err.to_string())
+    }
+}
+
+impl From<tauri::Error> for CmdError {
+    fn from(err: tauri::Error) -> Self {
+        Self::new(ErrorCode::Platform, err.to_string())
     }
 }
