@@ -75,8 +75,9 @@ Concretely:
   only as a local variable inside the platform-specific callback and the single `dispatch`
   function that all three platforms funnel through. `dispatch` immediately reduces it to a
   `KeySound { class, dir, x }` value — one of 5 coarse classes (default / space / enter /
-  backspace / modifier), a direction (down/up), and a pan position on the board — and the
-  original key code is dropped. Nothing past that point can recover which key it was.
+  backspace / modifier), a direction (down/up), and a coarse pan position shared by many keys
+  on the board — and the original key code is dropped. What the audio engine receives cannot
+  tell you which letter was typed.
 - There are no per-keystroke events sent to the UI, no keystroke counters, no "typing
   statistics," and no visualizer of any kind.
 - Clatterbox makes **zero network connections**. No updater, no telemetry, no crash reporter.

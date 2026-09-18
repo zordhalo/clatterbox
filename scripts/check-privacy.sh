@@ -14,11 +14,24 @@ PATHS=(
   "crates/core/src/repeat.rs"
 )
 
+rc=0
 if command -v rg >/dev/null 2>&1; then
-  MATCHES=$(rg -n -E "$PATTERN" "${PATHS[@]}" || true)
+  # rg's own -E flag means --encoding, not "extended regex" (rg regexes are
+  # already Rust-regex, no -E needed) — passing it exits 2 (usage error),
+  # which `|| true` would otherwise swallow as "no matches found".
+  MATCHES=$(rg -n "$PATTERN" "${PATHS[@]}") || rc=$?
 else
   echo "warning: ripgrep (rg) not found, falling back to grep -E" >&2
-  MATCHES=$(grep -rnE "$PATTERN" "${PATHS[@]}" || true)
+  MATCHES=$(grep -rnE "$PATTERN" "${PATHS[@]}") || rc=$?
+fi
+
+# Exit code 1 means "no matches" for both rg and grep — that's the pass case.
+# Anything else (2+) is a real tool failure (bad pattern, missing path, etc.)
+# and must not be treated as "clean".
+if [[ $rc -gt 1 ]]; then
+  echo "Privacy check errored (rg/grep exit code $rc) — treating as failure." >&2
+  echo "$MATCHES" >&2
+  exit 1
 fi
 
 if [[ -n "$MATCHES" ]]; then
