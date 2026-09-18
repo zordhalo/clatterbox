@@ -144,6 +144,13 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
       return settings as unknown as T;
     case "update_settings": {
       const patch = (args?.patch ?? {}) as SettingsPatch;
+      // Mirrors update_settings (SPEC §8.3): an invalid pack is rejected, settings unchanged.
+      if (patch.pack) {
+        const target = allPacks.find((p) => p.id === patch.pack);
+        if (!target || !target.valid) {
+          throw { code: "pack_invalid", message: `${patch.pack}: pack failed to load` };
+        }
+      }
       settings = sanitize({ ...settings, ...patch });
       settingsListeners.forEach((cb) => cb(settings));
       return settings as unknown as T;

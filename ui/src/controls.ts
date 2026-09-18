@@ -93,29 +93,31 @@ export function initControls(): void {
   });
 }
 
-/** Reflects a `Settings` snapshot into the controls, skipping any input the user is mid-drag on. */
+/**
+ * Reflects a `Settings` snapshot into the controls, skipping any slider the user is mid-drag on.
+ * Switches are always reflected: a click focuses the checkbox in Chromium, so `isEditing` would
+ * otherwise also swallow tray-driven updates to a switch the user just happens to have focused.
+ */
 export function renderControls(s: Settings): void {
-  if (!isEditing(els.enabled)) els.enabled.checked = s.enabled;
+  els.enabled.checked = s.enabled;
   if (!isEditing(els.volume)) {
     els.volume.value = String(Math.round(s.volume * 100));
     els.volumeValue.textContent = pct(s.volume);
     setSliderFill(els.volume);
   }
-  if (!isEditing(els.keyUp)) els.keyUp.checked = s.key_up_enabled;
+  els.keyUp.checked = s.key_up_enabled;
   if (!isEditing(els.pitch)) {
     els.pitch.value = String(Math.round(s.pitch_variation * 100));
     els.pitchValue.textContent = pct(s.pitch_variation);
     setSliderFill(els.pitch);
   }
-  if (!isEditing(els.spatial)) {
-    els.spatial.checked = s.spatial_enabled;
-    els.widthGroup.classList.toggle("disabled", !s.spatial_enabled);
-    els.width.disabled = !s.spatial_enabled;
-  }
+  els.spatial.checked = s.spatial_enabled;
+  els.widthGroup.classList.toggle("disabled", !s.spatial_enabled);
+  els.width.disabled = !s.spatial_enabled;
   if (!isEditing(els.width)) {
     els.width.value = String(Math.round(s.spatial_width * 100));
     els.widthValue.textContent = pct(s.spatial_width);
     setSliderFill(els.width);
   }
-  if (!isEditing(els.launch)) els.launch.checked = s.launch_at_login;
+  els.launch.checked = s.launch_at_login;
 }

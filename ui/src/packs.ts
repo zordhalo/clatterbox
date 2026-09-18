@@ -11,11 +11,30 @@ import {
 } from "./api";
 
 const listEl = document.getElementById("pack-list") as HTMLUListElement;
+const switchErrorEl = document.getElementById("pack-switch-error") as HTMLParagraphElement;
 const importBtn = document.getElementById("import-pack") as HTMLButtonElement;
 const openDirBtn = document.getElementById("open-packs-dir") as HTMLButtonElement;
 const reloadBtn = document.getElementById("reload-packs") as HTMLButtonElement;
 
 let currentPackId = "";
+let currentPacks: PackInfo[] = [];
+
+function describeError(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return "Could not switch packs.";
+}
+
+function showSwitchError(message: string): void {
+  switchErrorEl.textContent = message;
+  switchErrorEl.hidden = false;
+}
+
+function clearSwitchError(): void {
+  switchErrorEl.hidden = true;
+}
 
 function metaLine(p: PackInfo): string {
   if (!p.valid) return p.error ?? "Invalid pack";
@@ -36,7 +55,13 @@ function buildRow(p: PackInfo): HTMLLIElement {
   radio.checked = p.id === currentPackId;
   radio.id = `pack-${p.id}`;
   radio.addEventListener("change", () => {
-    if (radio.checked) void updateSettings({ pack: p.id });
+    if (!radio.checked) return;
+    const previousPackId = currentPackId;
+    clearSwitchError();
+    updateSettings({ pack: p.id }).catch((err: unknown) => {
+      showSwitchError(describeError(err));
+      renderPacks(currentPacks, previousPackId);
+    });
   });
 
   const info = document.createElement("div");
@@ -66,6 +91,7 @@ function buildRow(p: PackInfo): HTMLLIElement {
 }
 
 export function renderPacks(packs: PackInfo[], selectedPackId: string): void {
+  currentPacks = packs;
   currentPackId = selectedPackId;
   listEl.replaceChildren(...packs.map(buildRow));
 }

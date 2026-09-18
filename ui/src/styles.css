@@ -456,6 +456,16 @@ input {
   cursor: not-allowed;
 }
 
+.pack-switch-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 6px 2px 0;
+}
+
+.pack-switch-error[hidden] {
+  display: none;
+}
+
 .pack-footer {
   display: flex;
   gap: 8px;
