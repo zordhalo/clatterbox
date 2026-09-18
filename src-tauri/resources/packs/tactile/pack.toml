@@ -1,0 +1,22 @@
+schema = 1
+name = "Tactile"
+author = "StavSounds, Foxfire-, alpinemesh, yottasounds"
+license = "CC0-1.0"
+source_url = "https://freesound.org/people/StavSounds/packs/42151/"
+description = "Bright tactile-switch keystrokes, mixed CC0 sources."
+
+[sounds.default]
+down = [
+  "down-01.mp3", "down-02.mp3", "down-03.mp3", "down-04.mp3",
+  "down-05.mp3", "down-06.mp3", "down-07.mp3", "down-08.mp3",
+  "down-09.mp3", "down-10.mp3", "down-11.mp3", "down-12.mp3",
+]
+up = ["up-01.mp3"]
+
+[sounds.enter]
+down = ["enter-down-01.mp3"]
+gain_db = -2.0
+
+[sounds.backspace]
+down = ["backspace-down-01.mp3"]
+gain_db = 1.0

@@ -1,0 +1,14 @@
+schema = 1
+name = "Classic Office"
+author = "unicaegames"
+license = "CC0-1.0"
+source_url = "https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes"
+description = "32 round-robin single keystrokes, muted office-keyboard timbre."
+
+[sounds.default]
+down = [
+  "down-01.wav", "down-02.wav", "down-03.wav", "down-04.wav",
+  "down-05.wav", "down-06.wav", "down-07.wav", "down-08.wav",
+  "down-09.wav", "down-10.wav", "down-11.wav", "down-12.wav",
+  "down-13.wav", "down-14.wav", "down-15.wav", "down-16.wav",
+]

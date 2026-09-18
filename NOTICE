@@ -1,0 +1,19 @@
+Clatterbox
+Copyright 2026 Lucas Krawczak
+
+This product includes software developed as part of the Clatterbox project
+(https://github.com/zordhalo/clatterbox), licensed under the Apache License,
+Version 2.0. See LICENSE for the full license text.
+
+This distribution also includes bundled audio samples that are not covered by
+the Apache License above. Each is public domain (CC0-1.0), contributed by its
+respective author:
+
+- `src-tauri/resources/packs/classic/` — recordings by unicaegames, from
+  "Keyboard Soundpack 1 — Typing and Single Keystrokes" (OpenGameArt.org).
+- `src-tauri/resources/packs/tactile/` — recordings by StavSounds, Foxfire-,
+  alpinemesh, and yottasounds (Freesound.org).
+
+Full per-file attribution and source links are in each pack's own CREDITS.md.
+No warranty or license restriction applies to CC0-1.0 material beyond what
+the CC0 dedication itself states.
