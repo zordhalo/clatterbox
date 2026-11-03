@@ -1,5 +1,7 @@
 # Clatterbox
 
+[![MCP servers live](https://whobuildsagents.com/badge/advancelabs.dev.svg)](https://whobuildsagents.com/advancelabs.dev)
+
 Mechanical keyboard sounds for every keystroke, on a keyboard that doesn't make any.
 
 **[Try it in your browser →](https://clatterbox.runs-on.dev)** · **[Download](https://github.com/zordhalo/clatterbox/releases/latest)**
